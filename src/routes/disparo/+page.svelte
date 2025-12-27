@@ -1048,13 +1048,6 @@
             >
               Iniciar Disparo
             </button>
-            <button
-              onclick={() => handleSend(true)}
-              class="w-full mt-2 py-2 bg-transparent border border-zinc-700 text-zinc-300 rounded-lg hover:border-green-600 hover:text-white transition-colors"
-              title="Forçar envio mesmo se usuário for funcionário (apenas para testes)"
-            >
-              Forçar Envio (teste)
-            </button>
           </div>
 
           <!-- Preview -->
