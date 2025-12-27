@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "4173:4173"
+    environment:
+      - NODE_ENV=production
+    # In production do not mount the source code; keep the image self-contained.
+    # volumes:
+    #   - ./:/app
