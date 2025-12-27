@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { webhook } from '$lib/api';
 
   const { user, isAuthenticated, effectiveCompanyId } = authStore;
 
@@ -88,7 +89,7 @@
         userRole: userValue?.role
       };
 
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/listar-numeros', {
+      const response = await fetch(webhook('listar-numeros'), {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -106,7 +107,7 @@
             userRole: userValue?.role
           };
 
-          const respDisp = await fetch('https://auto.agiussolar.cloud/webhook/numeros-disparos', {
+          const respDisp = await fetch(webhook('numeros-disparos'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dispPayload)
@@ -158,7 +159,7 @@
     // If the backend specifically demands GET with body, this might fail in browser.
     // I'll assume POST is acceptable or the user meant "pass params".
     // For now: POST.
-    const WEBHOOK_STATUS_URL = 'https://auto.agiussolar.cloud/webhook/status-intancia';
+    const WEBHOOK_STATUS_URL = webhook('status-intancia');
 
     try {
       const payload = {
@@ -200,7 +201,7 @@
     }
 
     loading = true;
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/criar-conexao';
+    const WEBHOOK_URL = webhook('criar-conexao');
 
     // Allow multiple numbers separated by comma / semicolon / newline
     const rawNumbers = (connectionForm.number || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
@@ -322,7 +323,7 @@
               numero: connection.numero
             };
 
-            const response = await fetch('https://auto.agiussolar.cloud/webhook/deletar-numero', {
+            const response = await fetch(webhook('deletar-numero'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
@@ -358,7 +359,7 @@
               numero: connection.numero
             };
 
-            const response = await fetch('https://auto.agiussolar.cloud/webhook/desconectar-numero', {
+            const response = await fetch(webhook('desconectar-numero'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
@@ -384,7 +385,7 @@
     } else if (action === 'connect') {
       try {
         loadingConnections = true; // Use loading state to feedback user
-        const response = await fetch('https://auto.agiussolar.cloud/webhook/conectar-instancia', {
+        const response = await fetch(webhook('conectar-instancia'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nomeConexao: connection.nomeConexao })
@@ -468,7 +469,7 @@
         status: isChecked // retrocompatibilidade: enviar também 'status'
       };
 
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/ativar-disparo', {
+      const response = await fetch(webhook('ativar-disparo'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

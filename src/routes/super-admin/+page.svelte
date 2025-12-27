@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
+  import { WEBHOOK_BASE, webhook } from '$lib/api';
 
   const { user, isAuthenticated, isSuperAdmin, logout } = authStore;
 
@@ -57,7 +58,7 @@
   async function fetchCompanies() {
     loading = true;
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/listar-empresas', {
+      const response = await fetch(webhook('listar-empresas'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -84,7 +85,7 @@
   async function fetchUsers() {
     loading = true;
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/listar-usuarios', {
+      const response = await fetch(webhook('listar-usuarios'), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -153,7 +154,7 @@
     loading = true;
 
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/criar-empresa', {
+      const response = await fetch(webhook('criar-empresa'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentCompany)
@@ -184,7 +185,7 @@
     loading = true;
 
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/editar-empresa', {
+      const response = await fetch(webhook('editar-empresa'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingCompany)
@@ -220,7 +221,7 @@
     loading = true;
 
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/excluir-empresa', {
+      const response = await fetch(webhook('excluir-empresa'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: companyToDelete.id })
@@ -298,8 +299,8 @@
     }
 
     const WEBHOOK_URL = isEditingUser
-      ? 'https://auto.agiussolar.cloud/webhook/editar-usuario'
-      : 'https://auto.agiussolar.cloud/webhook/criar-usuario';
+      ? webhook('editar-usuario')
+      : webhook('criar-usuario');
 
     loading = true;
     const userToSend = {
@@ -354,7 +355,7 @@
     loading = true;
 
     try {
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/excluir-usuario', {
+      const response = await fetch(webhook('excluir-usuario'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: userToDelete.id, email: userToDelete.email })

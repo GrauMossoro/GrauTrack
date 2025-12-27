@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation'
   import { page } from '$app/stores'
   import { onMount } from 'svelte'
+  import { webhook } from '$lib/api';
 
   let token = ''
   let newPassword = $state('')
@@ -13,8 +14,8 @@
   let success = $state(false)
   
   // Configuração do webhook - pode ser movido para variáveis de ambiente
-  let VALIDATE_TOKEN_WEBHOOK = $state('https://auto.agiussolar.cloud/webhook/verificar-token')
-  let RESET_PASSWORD_WEBHOOK = $state('https://auto.agiussolar.cloud/webhook/nova-senha')
+  let VALIDATE_TOKEN_WEBHOOK = $state(webhook('verificar-token'))
+  let RESET_PASSWORD_WEBHOOK = $state(webhook('nova-senha'))
 
   onMount(() => {
     // Pega o token da URL

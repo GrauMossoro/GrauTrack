@@ -5,6 +5,7 @@
   import Sidebar from '$lib/components/layout/sidebar.svelte';
   import PeriodSelector from '$lib/components/dashboard/period-selector.svelte';
   import StatCard from '$lib/components/dashboard/stat-card.svelte';
+  import { WEBHOOK_BASE, webhook } from '$lib/api';
 
   const { user, selectedCompany } = authStore;
 
@@ -78,7 +79,7 @@
   });
 
   async function fetchDashboardData(period: string) {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/dashboard';
+    const WEBHOOK_URL = webhook('dashboard');
 
     loading = true;
 

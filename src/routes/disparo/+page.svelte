@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { WEBHOOK_BASE, webhook } from '$lib/api';
 
   const { user, isAuthenticated, isFranqueadora, effectiveCompanyId, selectedCompany, isManager } = authStore;
 
@@ -153,7 +154,7 @@
 
   async function fetchPlanUsage() {
     // TODO: Replace with actual webhook
-    // const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/leads-blast-usage';
+    // const WEBHOOK_URL = webhook('leads-blast-usage');
     
     loadingUsage = true;
     try {
@@ -177,7 +178,7 @@
   }
 
   async function fetchBlasts() {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/listar-disparos-pendentes';
+    const WEBHOOK_URL = webhook('listar-disparos-pendentes');
 
     loadingHistory = true;
     try {
@@ -223,7 +224,7 @@
 
   async function fetchConnections() {
     // TODO: Replace with actual webhook
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/listar-conexoes';
+    const WEBHOOK_URL = webhook('listar-conexoes');
     
     loadingConnections = true;
     try {
@@ -266,7 +267,7 @@
         console.warn('[Disparo] userId ausente ao chamar numeros-disparos, enviando null. userValue=', userValue);
       }
 
-      const response = await fetch('https://auto.agiussolar.cloud/webhook/numeros-disparos', {
+      const response = await fetch(webhook('numeros-disparos'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -396,7 +397,7 @@
     sending = true;
     sendingProgress = { sent: 0, total: 0, status: 'sending' };
 
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/novo-disparo';
+    const WEBHOOK_URL = webhook('novo-disparo');
 
     try {
       // Build payload
@@ -528,7 +529,7 @@
   async function approveBlast(blastId: number) {
     if (!confirm('Deseja aprovar este disparo?')) return;
     
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/autorizar-disparos';
+    const WEBHOOK_URL = webhook('autorizar-disparos');
     
     try {
       const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;
@@ -572,7 +573,7 @@
   async function cancelBlast(blastId: number) {
     if (!confirm('Deseja reprovar este disparo?')) return;
     
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/autorizar-disparos';
+    const WEBHOOK_URL = webhook('autorizar-disparos');
     
     try {
       const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;
@@ -616,7 +617,7 @@
   async function viewBlastDetails(blastId: number) {
     showBlastModal = false;
     blastModalData = null;
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/visualizar-disparo';
+    const WEBHOOK_URL = webhook('visualizar-disparo');
     try {
       const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;
       const payload = { id: blastId, userId: uid, userRole: userValue?.role ?? '', companyId: effectiveCompanyIdValue };
@@ -707,7 +708,7 @@
   async function startBlast(blastId: number) {
     if (!confirm('Deseja iniciar este disparo agora?')) return;
     
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/iniciar-disparo';
+    const WEBHOOK_URL = webhook('iniciar-disparo');
     
     try {
       const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { webhook } from '$lib/api';
 
   const auth = authStore;
 
@@ -153,7 +154,7 @@
   });
 
   async function fetchCourses() {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/listar-cursos';
+    const WEBHOOK_URL = webhook('listar-cursos');
     
     const companyId = effectiveCompanyIdValue || userValue?.companyId;
     if (!companyId) {
@@ -184,7 +185,7 @@
   }
 
   async function fetchLeads() {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/leads-list';
+    const WEBHOOK_URL = webhook('leads-list');
     
     // Se effectiveCompanyIdValue for null, buscar todos os leads
     // Caso contrário, usar effectiveCompanyIdValue ou companyId do usuário
@@ -278,7 +279,7 @@
     savingLead = true;
 
     try {
-      const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/leads-create';
+      const WEBHOOK_URL = webhook('leads-create');
       
       const companyId = effectiveCompanyIdValue || userValue?.companyId;
       
@@ -353,7 +354,7 @@
     }
 
     deleting = true;
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/leads-delete';
+    const WEBHOOK_URL = webhook('leads-delete');
 
     try {
       const response = await fetch(WEBHOOK_URL, {

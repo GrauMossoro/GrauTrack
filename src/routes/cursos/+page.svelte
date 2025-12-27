@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { WEBHOOK_BASE, webhook } from '$lib/api';
 
   const { user, isAuthenticated, isManager, isFranqueadora, effectiveCompanyId, selectedCompany } = authStore;
   let isAuthenticatedValue = false;
@@ -14,14 +15,14 @@
   let sidebarCollapsed = $state(false);
 
   // Webhooks
-  const GET_COURSES_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/listar-cursos';
-  const CREATE_COURSE_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/criar-curso';
-  const UPDATE_COURSE_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/editar-curso';
-  const DELETE_COURSE_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/excluir-curso';
-  const GET_CLASSES_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/listar-turmas';
-  const CREATE_CLASS_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/criar-turma';
-  const UPDATE_CLASS_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/editar-turma';
-  const DELETE_CLASS_WEBHOOK = 'https://auto.agiussolar.cloud/webhook/excluir-turma';
+  const GET_COURSES_WEBHOOK = webhook('listar-cursos');
+  const CREATE_COURSE_WEBHOOK = webhook('criar-curso');
+  const UPDATE_COURSE_WEBHOOK = webhook('editar-curso');
+  const DELETE_COURSE_WEBHOOK = webhook('excluir-curso');
+  const GET_CLASSES_WEBHOOK = webhook('listar-turmas');
+  const CREATE_CLASS_WEBHOOK = webhook('criar-turma');
+  const UPDATE_CLASS_WEBHOOK = webhook('editar-turma');
+  const DELETE_CLASS_WEBHOOK = webhook('excluir-turma');
 
   interface Course {
     id: number;

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { webhook } from '$lib/api';
 
   let isAuthenticated = false;
   let user = $state(null);
@@ -61,7 +62,7 @@
       return;
     }
 
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/perfil-atualizar';
+    const WEBHOOK_URL = webhook('perfil-atualizar');
     
     loading = true;
     error = '';
@@ -123,7 +124,7 @@
       return;
     }
 
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/alterar-senha-perfil';
+    const WEBHOOK_URL = webhook('alterar-senha-perfil');
     
     loading = true;
     error = '';

@@ -1,4 +1,5 @@
 import { writable, derived } from "svelte/store"
+import { webhook } from '$lib/api'
 
 type UserRole = "funcionario" | "coordenador" | "direcao" | "super_admin" | "franqueadora"
 
@@ -71,7 +72,7 @@ function createAuthStore() {
   })
 
   async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
-    const WEBHOOK_URL = "https://auto.agiussolar.cloud/webhook/login"
+    const WEBHOOK_URL = webhook('login')
 
     try {
       const response = await fetch(WEBHOOK_URL, {
@@ -114,7 +115,7 @@ function createAuthStore() {
   }
 
   async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
-    const WEBHOOK_URL = "https://auto.agiussolar.cloud/webhook/reset-password"
+    const WEBHOOK_URL = webhook('reset-password')
 
     try {
       const response = await fetch(WEBHOOK_URL, {
@@ -131,7 +132,7 @@ function createAuthStore() {
 
   async function fetchCompanies(): Promise<void> {
     // <WEBHOOK> URL do webhook para listar empresas
-    const WEBHOOK_URL = "https://auto.agiussolar.cloud/webhook/listar-empresas"
+    const WEBHOOK_URL = webhook('listar-empresas')
 
     try {
       const response = await fetch(WEBHOOK_URL, {

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.svelte';
   import Sidebar from '$lib/components/layout/sidebar.svelte';
+  import { WEBHOOK_BASE, webhook } from '$lib/api';
   
 
   const { user, isAuthenticated, isManager, isFranqueadora, effectiveCompanyId, selectedCompany } = authStore;
@@ -134,7 +135,7 @@
   });
 
   async function fetchEmployees() {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/listar-funcionarios';
+    const WEBHOOK_URL = webhook('listar-funcionarios');
     
     const companyId = effectiveCompanyIdValue ?? userValue?.companyId;
     
@@ -178,7 +179,7 @@
   }
 
   async function fetchCompanies() {
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/listar-empresas';
+    const WEBHOOK_URL = webhook('listar-empresas');
     
     try {
       const response = await fetch(WEBHOOK_URL, {
@@ -251,8 +252,8 @@
 
     try {
       const webhookUrl = isEditing
-        ? 'https://auto.agiussolar.cloud/webhook/editar-funcionario'
-        : 'https://auto.agiussolar.cloud/webhook/criar-funcionario';
+        ? webhook('editar-funcionario')
+        : webhook('criar-funcionario');
 
       const payload: any = {
         id: currentEmployee.id,
@@ -294,7 +295,7 @@
       return;
     }
 
-    const WEBHOOK_URL = 'https://auto.agiussolar.cloud/webhook/excluir-funcionario';
+    const WEBHOOK_URL = webhook('excluir-funcionario');
     
     loading = true;
     
