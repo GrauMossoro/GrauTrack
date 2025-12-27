@@ -1,0 +1,38 @@
+/* Usando CSS puro com variáveis CSS customizadas */
+
+:root {
+  --color-primary: #22c55e;
+  --color-primary-dark: #16a34a;
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Garantindo que selects tenham fundo escuro */
+select option {
+  background-color: #1a1a1a;
+  color: #fafafa;
+  padding: 8px;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #22c55e;
+  color: white;
+}
+
+/* Garantindo modais com fundo sólido */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+}
