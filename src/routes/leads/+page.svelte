@@ -82,29 +82,39 @@
   };
 
   function formatDate(dateString: string): string {
-    if (!dateString) return '';
-    
-    try {
-      // Se já está no formato DD/MM/YYYY, retorna direto
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
-        return dateString;
-      }
-      
-      // Tentar parse ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss)
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return dateString;
-      }
-      
-      const day = String(date.getUTCDate()).padStart(2, '0');
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const year = date.getUTCFullYear();
-      return `${day}/${month}/${year}`;
-    } catch (error) {
-      console.error('[v0] Error formatting date:', error);
+  if (!dateString) return '';
+
+  try {
+    // DD/MM/YYYY HH:mm → já está correto
+    if (/^\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}$/.test(dateString)) {
       return dateString;
     }
+
+    // DD/MM/YYYY → já está correto
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+      return `${dateString} 00:00`;
+    }
+
+    // Somente ISO entra aqui
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return dateString;
+    }
+
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+
+    return `${d}/${m}/${y} ${h}:${min}`;
+  } catch (error) {
+    console.error('[formatDate] Error formatting date:', error);
+    return dateString;
   }
+}
+
+
 
   onMount(() => {
     const unsubAuth = auth.isAuthenticated.subscribe((value) => {

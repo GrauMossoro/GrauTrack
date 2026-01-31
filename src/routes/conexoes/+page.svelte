@@ -554,6 +554,7 @@
       <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-8 h-fit flex flex-col">
         <h2 class="text-xl font-semibold text-white mb-6">Configuração de Disparo</h2>
         <p class="text-sm text-zinc-400 mb-4">Selecione os números que serão utilizados para o envio de mensagens em massa.</p>
+        <p class="text-sm text-zinc-400 mb-4">Apenas números <strong>conectados</strong> serão listados</p>
         
         <!-- Dropdown select to choose numbers for mass blast -->
         <div class="mb-4 relative">
@@ -579,23 +580,26 @@
             {#if massBlastDropdownOpen}
               <div class="massblast-dropdown absolute z-40 mt-2 w-full max-h-64 overflow-auto bg-zinc-900 border border-zinc-800 rounded-lg p-2 shadow-lg">
                 {#if connections.length === 0}
-                  <div class="text-sm text-zinc-500 p-2">Nenhuma conexão disponível.</div>
+                  <div class="text-sm text-zinc-500 p-2">Nenhuma número conectado.</div>
                 {:else}
                   {#each connections as conn}
+                    {#if conn.status === "conectado"}
                     <div
                       class="flex items-center justify-between p-2 rounded hover:bg-zinc-800/40 cursor-pointer"
                       onclick={() => toggleMassBlastOption(conn)}
                     >
-                      <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 text-xs">
-                          {conn.nomeConexao?.charAt(0).toUpperCase() || '?'}
+                          <div class="flex items-center gap-3">
+                          <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 text-xs">
+                            {conn.nomeConexao?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          <div class="flex flex-col text-sm">
+                            <span class="text-zinc-200">{conn.nomeConexao}</span>
+                            <span class="text-xs text-zinc-500">{conn.numero}</span>
+                            <span class="text-xs text-zinc-500">{conn.status}</span>
+                          </div>
                         </div>
-                        <div class="flex flex-col text-sm">
-                          <span class="text-zinc-200">{conn.nomeConexao}</span>
-                          <span class="text-xs text-zinc-500">{conn.numero}</span>
-                        </div>
-                      </div>
                     </div>
+                      {/if}
                   {/each}
                 {/if}
               </div>
