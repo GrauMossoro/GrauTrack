@@ -637,6 +637,10 @@
 
       // Normalize expected fields: message/text and image (base64)
       const message = data.message ?? data.mensagem ?? data.text ?? data.body ?? '';
+      const name = data.name ?? data.nome ?? '';
+      const date = data.data ?? data.date ?? '';
+      const totalLeads = data.total_leads ?? data.totalLeads ?? 0;
+      
       let imageBase64 = data.image ?? data.imagem ?? data.image_base64 ?? data.base64 ?? null;
 
       let imageDataUrl = null;
@@ -652,7 +656,7 @@
         }
       }
 
-      blastModalData = { message, imageDataUrl, raw: data };
+      blastModalData = { message, name, date, totalLeads, imageDataUrl, raw: data };
       showBlastModal = true;
     } catch (error) {
       console.error('[Disparo] Error viewing blast:', error);
@@ -1161,6 +1165,22 @@
 
           <!-- Body -->
           <div class="p-6 overflow-y-auto">
+            <!-- Info Cards -->
+            <div class="grid grid-cols-3 gap-3 mb-6">
+              <div class="bg-zinc-800/50 rounded-lg border border-zinc-700 p-3">
+                <label class="block text-xs font-medium text-zinc-500 mb-1">Data</label>
+                <p class="text-white font-semibold text-sm">{blastModalData.date || '-'}</p>
+              </div>
+              <div class="bg-zinc-800/50 rounded-lg border border-zinc-700 p-3">
+                <label class="block text-xs font-medium text-zinc-500 mb-1">Lista</label>
+                <p class="text-white font-semibold text-sm">{blastModalData.totalLeads || 0} contatos</p>
+              </div>
+              <div class="bg-zinc-800/50 rounded-lg border border-zinc-700 p-3">
+                <label class="block text-xs font-medium text-zinc-500 mb-1">Título</label>
+                <p class="text-white font-semibold text-sm truncate" title={blastModalData.name}>{blastModalData.name || '-'}</p>
+              </div>
+            </div>
+
             {#if blastModalData.imageDataUrl}
               <div class="mb-6 rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800">
                 <img src={blastModalData.imageDataUrl} alt="Blast content" class="w-full h-auto object-contain max-h-[300px]" />
