@@ -130,7 +130,7 @@
       </div>
       {#if !collapsed}
         <div class="flex-1 overflow-hidden">
-          <p class="text-xs text-zinc-400 truncate">Virtualizze Track</p>
+          <p class="text-xs text-zinc-400 truncate">Hub Grau</p>
           {#if userValue}
             <h1 class="font-bold text-white text-sm truncate">
               {userValue.companyName || 'Carregando...'}
@@ -273,3 +273,4 @@
     </button>
   </div>
 </aside>
+
