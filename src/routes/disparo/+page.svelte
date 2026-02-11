@@ -764,28 +764,6 @@
           </p>
         {/if}
       </div>
-
-      <!-- Plan Usage Counter -->
-      {#if (!isFranqueadoraValue || selectedCompanyValue) && planUsage.disparo_limit > 0}
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 min-w-[250px]">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-zinc-400">Plano {planUsage.planName}</span>
-            <span class="text-xs font-medium px-2 py-0.5 rounded-full {planUsage.disparos_used >= planUsage.disparo_limit ? 'bg-red-900/30 text-red-500' : 'bg-green-900/30 text-green-500'}">
-              {Math.round((planUsage.disparos_used / planUsage.disparo_limit) * 100)}%
-            </span>
-          </div>
-          <div class="flex items-end gap-1 mb-2">
-            <span class="text-2xl font-bold text-white">{planUsage.disparos_used.toLocaleString()}</span>
-            <span class="text-sm text-zinc-500 mb-1">/ {planUsage.disparo_limit.toLocaleString()} disparos</span>
-          </div>
-          <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-            <div 
-              class="h-full transition-all duration-500 {planUsage.disparos_used >= planUsage.disparo_limit ? 'bg-red-600' : 'bg-green-600'}"
-              style="width: {Math.min((planUsage.disparos_used / planUsage.disparo_limit) * 100, 100)}%"
-            ></div>
-          </div>
-        </div>
-      {/if}
     </div>
 
     {#if isFranqueadoraValue && !selectedCompanyValue}
@@ -1247,3 +1225,4 @@
     {/if}
   </main>
 </div>
+
