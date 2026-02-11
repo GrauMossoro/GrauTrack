@@ -78,8 +78,8 @@
 
 <div class="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
   <div class="w-full max-w-md">
-    <div class="text-center mb-8">
-      <img src="/header.png" alt="Virtualizze Track Header" style="width: 400px; margin: auto;">
+    <div class="text-center mb-5">
+      <img src="/header.png" alt="Logo tipo Grau Educacional" style="width: 100px; margin: auto;">
     </div>
 
     <div class="bg-zinc-900 border border-green-600/30 rounded-lg p-8 shadow-lg">
@@ -208,3 +208,4 @@
     </p>
   </div>
 </div>
+
