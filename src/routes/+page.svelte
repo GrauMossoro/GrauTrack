@@ -204,8 +204,9 @@
     </div>
 
     <p class="text-center text-xs text-zinc-500 mt-8">
-      &copy; {new Date().getFullYear()} Virtualizze Track. Todos os direitos reservados.
+      &copy; {new Date().getFullYear()} Desenvolvido por <a href="https://virtualizzeautomacao.com.br">Virtualizze Automação</a>. Todos os direitos reservados.
     </p>
   </div>
 </div>
+
 
