@@ -57,6 +57,37 @@
   let uploading = $state(false);
   // Raw uploaded file to be sent to backend if client can't parse
   let uploadedFile = $state(null);
+
+  // Feedback Modal State
+  let showFeedbackModal = $state(false);
+  let feedbackMessage = $state('');
+  let feedbackType = $state<'success' | 'error'>('success'); // success | error
+
+  // Filter State
+  let filterName = $state('');
+  let filterUser = $state('');
+  let filterStatus = $state('');
+  let filterDate = $state('');
+
+  // Computed filtered blasts
+  let filteredBlasts = $derived.by(() => {
+    return blasts.filter(blast => {
+      const nameMatch = blast.name.toLowerCase().includes(filterName.toLowerCase());
+      const userMatch = blast.user.toLowerCase().includes(filterUser.toLowerCase());
+      const statusMatch = !filterStatus || blast.status === filterStatus;
+      // compare using UTC year/month/day so local timezone doesn't shift the result
+      let dateMatch = true;
+      if (filterDate) {
+        // force the filter value to be interpreted as UTC midnight
+        const bd = new Date(blast.date);
+        const fd = new Date(filterDate + 'T00:00:00Z');
+        dateMatch = bd.getUTCFullYear() === fd.getUTCFullYear() &&
+                    bd.getUTCMonth() === fd.getUTCMonth() &&
+                    bd.getUTCDate() === fd.getUTCDate();
+      }
+      return nameMatch && userMatch && statusMatch && dateMatch;
+    });
+  });
   
 
   async function handleSpreadsheetFile(file: File) {
@@ -744,6 +775,48 @@
       alert('Erro ao iniciar disparo.');
     }
   }
+
+  async function stopBlast(blastId: number) {
+    if (!confirm('Deseja parar este disparo?')) return;
+    
+    const WEBHOOK_URL = 'https://auto.graueducacionalmossoro.com.br/webhook/interromper-disparo';
+    
+    try {
+      const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;
+      const payload = {
+        companyId: effectiveCompanyIdValue,
+        userId: uid,
+        id: blastId,
+        userRole: userValue?.role ?? ''
+      };
+
+      const resp = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await resp.json().catch(() => ({}));
+
+      if (result?.status === true) {
+        feedbackType = 'success';
+        feedbackMessage = result?.message || 'Disparo parado com sucesso!';
+        showFeedbackModal = true;
+        // Refresh list to get updated data
+        setTimeout(() => fetchBlasts(), 1500);
+      } else {
+        feedbackType = 'error';
+        feedbackMessage = result?.message || 'Erro ao parar disparo.';
+        showFeedbackModal = true;
+        console.error('[Disparo] Erro ao parar:', result);
+      }
+    } catch (error) {
+      console.error('[Disparo] Error stopping blast:', error);
+      feedbackType = 'error';
+      feedbackMessage = 'Erro ao parar disparo.';
+      showFeedbackModal = true;
+    }
+  }
 </script>
 
 <svelte:window onclick={closeMenu} />
@@ -834,6 +907,52 @@
       {#if activeTab === 'lista'}
         <!-- Lista Tab -->
         <div class="bg-zinc-900 border border-green-600/20 rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between gap-4 p-4 border-b border-zinc-800 flex-wrap">
+            <!-- Filters Side -->
+            <div class="flex items-center gap-3 flex-wrap">
+              <input
+                type="text"
+                bind:value={filterName}
+                placeholder="Nome da lista..."
+                class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+              />
+              <input
+                type="text"
+                bind:value={filterUser}
+                placeholder="Usuário..."
+                class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+              />
+              <select
+                bind:value={filterStatus}
+                class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+              >
+                <option value="">Todos os status</option>
+                <option value="pending">Pendente</option>
+                <option value="rejeitado">Rejeitado</option>
+                <option value="Em andamento">Em andamento</option>
+                <option value="interrompido">Interrompido</option>
+                <option value="concluido">Concluído</option>
+                <option value="aprovado">Aprovado</option>
+              </select>
+              <input
+                type="date"
+                bind:value={filterDate}
+                class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+              />
+            </div>
+            
+            <!-- Button Side -->
+            <button 
+              onclick={() => fetchBlasts()}
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              disabled={loadingHistory}
+            >
+              <svg class="w-4 h-4 {loadingHistory ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              {loadingHistory ? 'Atualizando...' : 'Atualizar'}
+            </button>
+          </div>
           {#if loadingHistory}
             <div class="flex items-center justify-center py-12">
               <div class="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
@@ -855,12 +974,12 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {#each blasts as blast}
+                  {#each filteredBlasts as blast}
                     <tr class="border-b border-zinc-800 hover:bg-zinc-800/20 transition-all">
                       <td class="p-4 text-sm text-zinc-400">#{blast.id}</td>
                       <td class="p-4 text-sm text-white font-medium">{blast.name}</td>
                       <td class="p-4 text-sm text-zinc-400">{blast.user}</td>
-                      <td class="p-4 text-sm text-zinc-400">{new Date(blast.date).toLocaleDateString()}</td>
+                      <td class="p-4 text-sm text-zinc-400">{new Date(blast.date).toLocaleDateString(undefined, {timeZone: 'UTC'})}</td>
                       <td class="p-4 text-center">
                         {#if blast.status === 'pending'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -873,6 +992,14 @@
                         {:else if blast.status === 'Em andamento'}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                           Em andamento
+                        </span>
+                        {:else if blast.status === 'interrompido'}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Interrompido
+                        </span>
+                        {:else if blast.status === 'concluido'}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Concluído
                         </span>
                         {:else}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -1102,6 +1229,19 @@
                 </button>
               {/if}
 
+              {#if blast.status === 'Em andamento'}
+                <div class="border-t border-zinc-800 my-1"></div>
+                <button
+                  onclick={() => { stopBlast(blast.id); closeMenu(); }}
+                  class="w-full text-left px-4 py-2 text-sm text-orange-500 hover:bg-zinc-800 hover:text-orange-400 flex items-center gap-2 font-medium"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 4a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2V4zm10 0a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2V4zM6 14a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm10 0a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4z"/>
+                  </svg>
+                  Parar Disparo
+                </button>
+              {/if}
+
               {#if blast.status === 'pending' && isManagerValue}
                 <div class="border-t border-zinc-800 my-1"></div>
                 <button
@@ -1224,6 +1364,39 @@
               Cancelar
             </button>
           </div>
+        </div>
+      </div>
+    {/if}
+    {#if showFeedbackModal}
+      <!-- Feedback Modal -->
+      <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick={() => showFeedbackModal = false}></div>
+        
+        <div class="relative w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-6">
+          <div class="text-center mb-6">
+            <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 {feedbackType === 'success' ? 'bg-green-500/10' : 'bg-red-500/10'}">
+              {#if feedbackType === 'success'}
+                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              {:else}
+                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              {/if}
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">{feedbackType === 'success' ? 'Sucesso' : 'Erro'}</h3>
+            <p class="text-zinc-300 text-sm">
+              {feedbackMessage}
+            </p>
+          </div>
+
+          <button
+            onclick={() => showFeedbackModal = false}
+            class="w-full py-3 {feedbackType === 'success' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white font-bold rounded-lg transition-colors"
+          >
+            Fechar
+          </button>
         </div>
       </div>
     {/if}
