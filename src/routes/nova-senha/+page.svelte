@@ -123,7 +123,7 @@
 <div class="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
   <div class="w-full max-w-md">
     <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-white tracking-tight">Virtualizze Track</h1>
+      <h1 class="text-3xl font-bold text-white tracking-tight">Hub Grau</h1>
       <p class="text-zinc-400 mt-2">Sistema de Gestão de Leads</p>
     </div>
 
@@ -258,7 +258,7 @@
     {/if}
 
     <p class="text-center text-xs text-zinc-500 mt-8">
-      &copy; {new Date().getFullYear()} Virtualizze Track. Todos os direitos reservados.
+      &copy; {new Date().getFullYear()} Hub Grau. Todos os direitos reservados.
     </p>
   </div>
 </div>
