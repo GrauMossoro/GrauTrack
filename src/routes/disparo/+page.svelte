@@ -68,10 +68,11 @@
   let filterUser = $state('');
   let filterStatus = $state('');
   let filterDate = $state('');
+  let sortOrder = $state('desc'); // 'desc' = mais recente para mais antigo, 'asc' = mais antigo para mais recente
 
   // Computed filtered blasts
   let filteredBlasts = $derived.by(() => {
-    return blasts.filter(blast => {
+    let filtered = blasts.filter(blast => {
       const nameMatch = blast.name.toLowerCase().includes(filterName.toLowerCase());
       const userMatch = blast.user.toLowerCase().includes(filterUser.toLowerCase());
       const statusMatch = !filterStatus || blast.status === filterStatus;
@@ -87,6 +88,15 @@
       }
       return nameMatch && userMatch && statusMatch && dateMatch;
     });
+    
+    // Sort by date
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+    
+    return filtered;
   });
   
 
@@ -939,6 +949,13 @@
                 bind:value={filterDate}
                 class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
               />
+              <select
+                bind:value={sortOrder}
+                class="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+              >
+                <option value="desc">Mais recente</option>
+                <option value="asc">Mais antigo</option>
+              </select>
             </div>
             
             <!-- Button Side -->
