@@ -139,6 +139,7 @@ declare module '$env/static/private' {
 	export const INTERNAL_VSCS_TARGET_URL: string;
 	export const GEM_PATH: string;
 	export const npm_execpath: string;
+	export const COPILOT_DEBUG_NONCE: string;
 	export const GITHUB_SERVER_URL: string;
 	export const NVM_CD_FLAGS: string;
 	export const npm_config_global_prefix: string;
@@ -298,6 +299,7 @@ declare module '$env/dynamic/private' {
 		INTERNAL_VSCS_TARGET_URL: string;
 		GEM_PATH: string;
 		npm_execpath: string;
+		COPILOT_DEBUG_NONCE: string;
 		GITHUB_SERVER_URL: string;
 		NVM_CD_FLAGS: string;
 		npm_config_global_prefix: string;

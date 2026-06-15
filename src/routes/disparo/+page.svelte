@@ -710,8 +710,168 @@
     blastModalData = null;
   }
 
-  function downloadList(blastId: number) {
-    alert(`Baixando lista do disparo ${blastId}...`);
+  async function downloadList(blastId: number) {
+    const WEBHOOK_URL = webhook('baixar-lista');
+    try {
+      const uid = userValue?.id ?? userValue?.userId ?? userValue?.userid ?? userValue?.user_id ?? null;
+      const payload = { id: blastId, companyId: effectiveCompanyIdValue, userId: uid };
+
+      const resp = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error('[Disparo] Erro ao baixar lista:', err);
+        alert('Erro ao baixar lista: ' + (err?.message || resp.statusText));
+        return;
+      }
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+
+      // Helper: try to download a blob with filename
+      const triggerDownload = (blob: Blob, filename: string) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      };
+
+      // If server returned JSON, n8n may embed binary as base64 inside JSON
+      if (contentType.includes('application/json')) {
+        const json = await resp.json();
+
+        // Expected n8n shape:
+        // { success: true, file: { nome: string, criado_em: string, base64: string } }
+        if (json && json.success && json.file && typeof json.file.base64 === 'string') {
+          const nome = json.file.nome || json.file.name || `lista_${blastId}`;
+          const criado = json.file.criado_em || json.file.created_at || json.file.criado || null;
+
+          // format criado to DD/MM/YYYY HH:MM
+          let formattedDate = '';
+          if (criado) {
+            try {
+              const d = new Date(criado);
+              const pad = (n: number) => String(n).padStart(2, '0');
+              const day = pad(d.getDate());
+              const month = pad(d.getMonth() + 1);
+              const year = d.getFullYear();
+              const hours = pad(d.getHours());
+              const minutes = pad(d.getMinutes());
+              formattedDate = `${day}/${month}/${year} ${hours}:${minutes}`;
+            } catch (err) {
+              formattedDate = String(criado);
+            }
+          }
+
+          const safeName = String(nome).replace(/[\\/:*?"<>|]+/g, '-');
+          let filenameBase = `Disparo ${safeName}${formattedDate ? ' ' + formattedDate : ''}`;
+
+          // strip data URL prefix if present
+          let base64 = json.file.base64;
+          let detectedMime = json.file.mime || '';
+          const commaIdx = base64.indexOf(',');
+          if (commaIdx > -1 && base64.slice(0, commaIdx).includes('base64')) {
+            // data:[<mediatype>][;base64],<data>
+            const prefix = base64.slice(0, commaIdx);
+            const m = prefix.match(/^data:([^;]+);base64/i);
+            if (m && m[1]) detectedMime = m[1];
+            base64 = base64.slice(commaIdx + 1);
+          }
+
+          try {
+            const cleanB64 = base64.replace(/\s+/g, '');
+            const binaryString = atob(cleanB64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+            // Determine extension: if nome already has one, keep it; otherwise infer from mime or magic bytes
+            function hasExtension(name: string) {
+              return /\.[a-zA-Z0-9]{1,6}$/.test(name);
+            }
+
+            function mimeToExt(mime: string) {
+              if (!mime) return '';
+              mime = mime.toLowerCase();
+              if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('sheet')) return 'xlsx';
+              if (mime === 'application/vnd.ms-excel') return 'xls';
+              if (mime.includes('csv') || mime === 'text/csv') return 'csv';
+              if (mime.includes('pdf')) return 'pdf';
+              if (mime.includes('png')) return 'png';
+              if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+              return '';
+            }
+
+            function detectExtByMagic(b: Uint8Array) {
+              if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4B && b[2] === 0x03 && b[3] === 0x04) return 'xlsx'; // zip -> xlsx
+              if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'pdf'; // %PDF
+              if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'png';
+              if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xD8) return 'jpg';
+              return '';
+            }
+
+            let ext = '';
+            if (hasExtension(String(nome))) {
+              // use extension from original name
+              ext = String(nome).split('.').pop() || '';
+            }
+            if (!ext) {
+              ext = mimeToExt(detectedMime) || detectExtByMagic(bytes) || '';
+            }
+            if (!ext) {
+              // fallback to xlsx since context is spreadsheet
+              ext = 'xlsx';
+            }
+
+            let filename = filenameBase;
+            if (!hasExtension(filename)) filename = `${filename}.${ext}`;
+
+            const blob = new Blob([bytes], { type: detectedMime || 'application/octet-stream' });
+            triggerDownload(blob, filename);
+            return;
+          } catch (err) {
+            console.error('[Disparo] Erro ao converter base64 recebido para blob:', err);
+            alert('Erro ao processar arquivo retornado pelo servidor.');
+            return;
+          }
+        }
+
+        // fallback: save the JSON we received
+        const fallbackStr = JSON.stringify(json, null, 2);
+        const blob = new Blob([fallbackStr], { type: 'application/json' });
+        triggerDownload(blob, `lista_${blastId}.json`);
+        return;
+      }
+
+      // Otherwise assume binary stream
+      const blob = await resp.blob();
+
+      // Try to extract filename from Content-Disposition
+      let filename = `lista_${blastId}`;
+      const cd = resp.headers.get('Content-Disposition') || resp.headers.get('content-disposition');
+      if (cd) {
+        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        if (m && m[1]) filename = decodeURIComponent(m[1]);
+      } else {
+        // fallback extension based on blob type
+        const mime = blob.type || '';
+        if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('sheet')) filename += '.xlsx';
+        else if (mime === 'text/csv' || mime.includes('csv')) filename += '.csv';
+        else if (mime === 'application/vnd.ms-excel') filename += '.xls';
+        else filename += '.bin';
+      }
+
+      triggerDownload(blob, filename);
+    } catch (error) {
+      console.error('[Disparo] Error downloading list:', error);
+      alert('Erro ao baixar lista. Veja o console para mais detalhes.');
+    }
   }
 
   function toggleMenu(event: MouseEvent, id: number) {
