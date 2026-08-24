@@ -210,9 +210,17 @@
     loading = true;
     
     try {
-      const payload = companyId 
-        ? { companyId: companyId }
-        : { allCompanies: true };
+      const payload = companyId
+        ? {
+            companyId,
+            userId: userValue?.id,
+            userRole: userValue?.role
+          }
+        : {
+            allCompanies: true,
+            userId: userValue?.id,
+            userRole: userValue?.role
+          };
 
       console.log('[v0] Payload para leads:', payload);
 
