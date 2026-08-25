@@ -22,6 +22,10 @@
 
   let showNewLeadModal = $state(false);
   let savingLead = $state(false);
+  let transferLead = $state<any>(null);
+  let selectedSellerId = $state('');
+  let transferringLead = $state(false);
+  let attendants = $state<any[]>([]);
   let newLead = $state({
     name: '',
     email: '',
@@ -37,6 +41,10 @@
   let registeredCourses = $state([]);
   let sellers = $state(['todos']);
   let dates = $state(['todos']);
+  const pageSize = 50;
+  const leadsCacheTtl = 2 * 60 * 1000;
+  let currentPage = $state(1);
+  let leadsRequestId = 0;
 
   let isFranqueadoraValue = $state(false);
   let effectiveCompanyIdValue = null;
@@ -80,6 +88,22 @@
 
     return leads.filter((lead: any) => matchesSearch(lead) && matchesCategory(lead) && matchesCourse(lead) && matchesSeller(lead) && matchesDate(lead));
   };
+
+  const totalPages = () => Math.max(1, Math.ceil(filteredLeads().length / pageSize));
+
+  const paginatedLeads = () => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLeads().slice(start, start + pageSize);
+  };
+
+  $effect(() => {
+    searchTerm;
+    filterCategory;
+    filterCourse;
+    filterSeller;
+    filterDate;
+    currentPage = 1;
+  });
 
   function formatDate(dateString: string): string {
   if (!dateString) return '';
@@ -127,9 +151,11 @@
     const unsubUser = auth.user.subscribe((value) => {
       userValue = value;
       canDelete = value?.role === 'franqueadora' || value?.role === 'direcao';
+      canTransfer = value?.role === 'direcao' || value?.role === 'coordenador';
       if (value?.companyId && leads.length === 0 && !loading) {
         fetchCourses();
         fetchLeads();
+        fetchAttendants();
       }
     });
 
@@ -147,6 +173,7 @@
       if (value && userValue) {
         fetchLeads();
         fetchCourses();
+        fetchAttendants();
       }
     });
 
@@ -207,7 +234,17 @@
       console.log('[v0] Buscando leads da empresa:', companyId);
     }
     
-    loading = true;
+    const cacheKey = getLeadsCacheKey(companyId);
+    const cachedLeads = getCachedLeads(cacheKey);
+    if (cachedLeads) {
+      leads = cachedLeads;
+      updateLeadFilters(cachedLeads);
+      loading = false;
+    } else {
+      loading = true;
+    }
+
+    const requestId = ++leadsRequestId;
     
     try {
       const payload = companyId
@@ -232,19 +269,77 @@
 
       if (!response.ok) {
         console.error('[v0] Erro na resposta:', response.status);
-        leads = [];
+        if (!cachedLeads) leads = [];
         return;
       }
 
       const data = await response.json();
       console.log('[v0] Leads recebidos:', data?.length || 0);
+
+      if (requestId !== leadsRequestId) return;
+
+      const nextLeads = extractLeads(data);
+      leads = nextLeads;
+      updateLeadFilters(nextLeads);
+      if (nextLeads.length > 0) {
+        cacheLeads(cacheKey, nextLeads);
+      }
       
-      leads = Array.isArray(data) ? data : [];
-      
-      courses = ['todos', ...Array.from(new Set(leads.map(l => l.course).filter(c => c)))];
-      sellers = ['todos', ...Array.from(new Set(leads.map(l => l.seller).filter(s => s)))];
-      
-      const uniqueDays = Array.from(new Set(leads.map(l => {
+      if (requestId === leadsRequestId) {
+        currentPage = 1;
+      }
+    } catch (err) {
+      console.error('[v0] Erro ao buscar leads:', err);
+      if (!cachedLeads) {
+        leads = [];
+      }
+    } finally {
+      if (requestId === leadsRequestId) {
+        loading = false;
+      }
+    }
+  }
+
+  function getCachedLeads(cacheKey: string): any[] | null {
+    if (typeof localStorage === 'undefined') return null;
+
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (!cached || !Array.isArray(cached.leads) || cached.leads.length === 0 || Date.now() - cached.timestamp > leadsCacheTtl) {
+        return null;
+      }
+      return cached.leads;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function extractLeads(data: any): any[] {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.leads)) return data.leads;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  }
+
+  function getLeadsCacheKey(companyId: number | null) {
+    return `grautrack:leads:${userValue?.id ?? 'anonymous'}:${userValue?.role ?? 'unknown'}:${companyId ?? 'all'}`;
+  }
+
+  function cacheLeads(cacheKey: string, nextLeads: any[]) {
+    if (typeof localStorage === 'undefined') return;
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), leads: nextLeads }));
+    } catch (error) {
+      console.warn('[v0] Não foi possível salvar o cache de leads:', error);
+    }
+  }
+
+  function updateLeadFilters(nextLeads: any[]) {
+    courses = ['todos', ...Array.from(new Set(nextLeads.map(l => l.course).filter(c => c)))];
+    sellers = ['todos', ...Array.from(new Set(nextLeads.map(l => l.seller).filter(s => s)))];
+
+    const uniqueDays = Array.from(new Set(nextLeads.map(l => {
         if (!l.firstContact) return null;
         const formatted = formatDate(l.firstContact);
         if (!/^\d{2}\/\d{2}\/\d{4}$/.test(formatted)) {
@@ -260,13 +355,79 @@
         const dateB = new Date(yearB, monthB - 1, dayB);
         return dateB.getTime() - dateA.getTime();
       })];
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (err) {
-      console.error('[v0] Erro ao buscar leads:', err);
-      leads = [];
+  }
+
+  async function fetchAttendants() {
+    const companyId = effectiveCompanyIdValue ?? userValue?.companyId;
+    if (!companyId) return;
+
+    try {
+      const response = await fetch(webhook('listar-funcionarios'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId })
+      });
+
+      if (!response.ok) {
+        attendants = [];
+        return;
+      }
+
+      const data = await response.json();
+      attendants = Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[v0] Erro ao buscar atendentes:', error);
+      attendants = [];
+    }
+  }
+
+  function openTransferModal(lead: any) {
+    transferLead = lead;
+    selectedSellerId = '';
+  }
+
+  async function transferLeadToAttendant() {
+    const companyId = effectiveCompanyIdValue ?? userValue?.companyId;
+    if (!transferLead || !selectedSellerId || !companyId) {
+      alert('Selecione um atendente e confirme a empresa do lead.');
+      return;
+    }
+
+    transferringLead = true;
+
+    try {
+      const response = await fetch('https://auto.graueducacionalmossoro.com.br/webhook/lead-atualizar-responsavel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: transferLead.id,
+          companyId,
+          sellerId: selectedSellerId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const transferredLeadId = transferLead.id;
+      const transferredSellerId = selectedSellerId;
+      const selectedAttendant = attendants.find(attendant => String(attendant.id) === String(transferredSellerId));
+      const updatedLeads = leads.map((lead: any) =>
+        lead.id === transferredLeadId
+          ? { ...lead, seller: selectedAttendant?.name || lead.seller, sellerId: transferredSellerId }
+          : lead
+      );
+      leads = updatedLeads;
+      updateLeadFilters(updatedLeads);
+      cacheLeads(getLeadsCacheKey(companyId), updatedLeads);
+      transferLead = null;
+      selectedSellerId = '';
+    } catch (error) {
+      console.error('[v0] Erro ao associar lead:', error);
+      alert('Erro ao associar o lead. Tente novamente.');
     } finally {
-      loading = false;
+      transferringLead = false;
     }
   }
 
@@ -335,6 +496,7 @@
 
   let selectedLeads = $state(new Set());
   let canDelete = $state(false);
+  let canTransfer = $state(false);
   let deleting = $state(false);
 
   function toggleSelectAll() {
@@ -387,6 +549,7 @@
       if (response.ok) {
         // Remove deleted leads from local state
         leads = leads.filter((l: any) => !ids.includes(l.id));
+        cacheLeads(getLeadsCacheKey(companyId), leads);
         selectedLeads = new Set();
         if (showDetailModal && selectedLead && ids.includes(selectedLead.id)) {
           showDetailModal = false;
@@ -568,7 +731,7 @@
           </div>
 
           <div class="text-sm text-zinc-400">
-            Mostrando {filteredLeads().length} de {leads.length} leads
+            Exibindo {paginatedLeads().length} de {filteredLeads().length} leads filtrados
           </div>
         </div>
       </div>
@@ -604,7 +767,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each filteredLeads() as lead}
+                {#each paginatedLeads() as lead}
                   <tr class="border-b border-zinc-700 hover:bg-zinc-800/50 hover:border-l-4 hover:border-l-green-600 transition-all">
                     {#if canDelete}
                       <td class="p-4">
@@ -642,11 +805,39 @@
                           </svg>
                         </button>
                       {/if}
+                      {#if canTransfer}
+                        <button
+                          onclick={() => openTransferModal(lead)}
+                          class="text-blue-400 hover:text-blue-300 text-sm font-medium ml-3"
+                          title="Associar atendente"
+                        >
+                          Associar
+                        </button>
+                      {/if}
                     </td>
                   </tr>
                 {/each}
               </tbody>
             </table>
+          </div>
+          <div class="flex items-center justify-between border-t border-zinc-700 px-4 py-3">
+            <span class="text-sm text-zinc-400">Página {currentPage} de {totalPages()}</span>
+            <div class="flex gap-2">
+              <button
+                onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                class="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                onclick={() => (currentPage = Math.min(totalPages(), currentPage + 1))}
+                disabled={currentPage >= totalPages()}
+                class="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Próxima
+              </button>
+            </div>
           </div>
         </div>
       {/if}
@@ -736,6 +927,56 @@
           aria-label="Fechar modal de detalhes"
         >
           Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if transferLead && canTransfer}
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-zinc-900 border border-green-600/30 rounded-lg p-6 w-full max-w-lg">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-bold text-white">Associar atendente</h3>
+        <button
+          onclick={() => (transferLead = null)}
+          class="text-zinc-400 hover:text-white"
+          aria-label="Fechar modal de associação"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="text-zinc-400 mb-4">Lead: <span class="text-white font-medium">{transferLead.name}</span></p>
+
+      <label class="block text-sm font-medium text-white mb-2" for="leadAttendant">Atendente</label>
+      <select
+        bind:value={selectedSellerId}
+        id="leadAttendant"
+        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
+      >
+        <option value="">Selecione um atendente</option>
+        {#each attendants as attendant}
+          <option value={attendant.id}>{attendant.name}</option>
+        {/each}
+      </select>
+
+      <div class="flex gap-3 mt-6">
+        <button
+          onclick={() => (transferLead = null)}
+          class="flex-1 px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white transition-colors"
+          disabled={transferringLead}
+        >
+          Cancelar
+        </button>
+        <button
+          onclick={transferLeadToAttendant}
+          class="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
+          disabled={transferringLead || !selectedSellerId}
+        >
+          {transferringLead ? 'Associando...' : 'Confirmar'}
         </button>
       </div>
     </div>
