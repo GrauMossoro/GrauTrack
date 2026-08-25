@@ -33,6 +33,7 @@
     category: '',
     course: '',
     seller: '',
+    sellerId: '',
     notes: ''
   });
 
@@ -45,6 +46,8 @@
   const leadsCacheTtl = 2 * 60 * 1000;
   let currentPage = $state(1);
   let leadsRequestId = 0;
+  let leadsFetchInFlight: Promise<void> | null = null;
+  let openActionsLeadId = $state<number | null>(null);
 
   let isFranqueadoraValue = $state(false);
   let effectiveCompanyIdValue = null;
@@ -95,6 +98,14 @@
     const start = (currentPage - 1) * pageSize;
     return filteredLeads().slice(start, start + pageSize);
   };
+
+  const pageStart = () => filteredLeads().length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = () => Math.min(currentPage * pageSize, filteredLeads().length);
+
+  function toggleLeadActions(event: MouseEvent, leadId: number) {
+    event.stopPropagation();
+    openActionsLeadId = openActionsLeadId === leadId ? null : leadId;
+  }
 
   $effect(() => {
     searchTerm;
@@ -152,10 +163,10 @@
       userValue = value;
       canDelete = value?.role === 'franqueadora' || value?.role === 'direcao';
       canTransfer = value?.role === 'direcao' || value?.role === 'coordenador';
-      if (value?.companyId && leads.length === 0 && !loading) {
+      if (value) {
         fetchCourses();
-        fetchLeads();
-        fetchAttendants();
+        startLeadsFetch();
+        if (value.companyId) fetchAttendants();
       }
     });
 
@@ -168,17 +179,20 @@
     });
     
     const unsubEffectiveCompany = auth.effectiveCompanyId.subscribe(value => {
+      const previousValue = effectiveCompanyIdValue;
       effectiveCompanyIdValue = value;
       // Recarregar dados quando a empresa mudar
-      if (value && userValue) {
-        fetchLeads();
-        fetchCourses();
-        fetchAttendants();
+      if (userValue && value !== previousValue) {
+        startLeadsFetch();
+        if (value) {
+          fetchCourses();
+          fetchAttendants();
+        }
       }
     });
 
-    if (isAuthenticated) {
-      fetchLeads();
+    if (isAuthenticated && userValue) {
+      startLeadsFetch();
     }
 
     return () => {
@@ -273,12 +287,17 @@
         return;
       }
 
-      const data = await response.json();
-      console.log('[v0] Leads recebidos:', data?.length || 0);
+      const responseText = await response.text();
+      const data = responseText ? JSON.parse(responseText) : null;
+      const nextLeads = extractLeads(data);
+      console.log('[v0] Leads recebidos:', nextLeads.length);
 
       if (requestId !== leadsRequestId) return;
 
-      const nextLeads = extractLeads(data);
+      if (nextLeads.length === 0 && leads.length > 0) {
+        console.warn('[v0] Webhook retornou zero leads; mantendo a lista atual.');
+        return;
+      }
       leads = nextLeads;
       updateLeadFilters(nextLeads);
       if (nextLeads.length > 0) {
@@ -300,6 +319,14 @@
     }
   }
 
+  function startLeadsFetch() {
+    if (!userValue || leadsFetchInFlight) return;
+
+    leadsFetchInFlight = fetchLeads().finally(() => {
+      leadsFetchInFlight = null;
+    });
+  }
+
   function getCachedLeads(cacheKey: string): any[] | null {
     if (typeof localStorage === 'undefined') return null;
 
@@ -315,9 +342,22 @@
   }
 
   function extractLeads(data: any): any[] {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.leads)) return data.leads;
-    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data)) {
+      return data.map(item => item?.json ?? item?.data ?? item).filter(item => item && typeof item === 'object');
+    }
+    if (typeof data === 'string') {
+      try {
+        return extractLeads(JSON.parse(data));
+      } catch (error) {
+        return [];
+      }
+    }
+    if (Array.isArray(data?.leads)) return extractLeads(data.leads);
+    if (Array.isArray(data?.data)) return extractLeads(data.data);
+    if (Array.isArray(data?.items)) return extractLeads(data.items);
+    if (Array.isArray(data?.json)) return extractLeads(data.json);
+    if (data?.json) return extractLeads(data.json);
+    if (data?.body) return extractLeads(data.body);
     return [];
   }
 
@@ -444,14 +484,15 @@
       category: '',
       course: '',
       seller: '',
+      sellerId: '',
       notes: ''
     };
     showNewLeadModal = true;
   }
 
   async function saveNewLead() {
-    if (!newLead.name || !newLead.phone) {
-      alert('Nome e telefone são obrigatórios!');
+    if (!newLead.name || !newLead.phone || !newLead.sellerId) {
+      alert('Nome, telefone e vendedor são obrigatórios!');
       return;
     }
 
@@ -461,6 +502,7 @@
       const WEBHOOK_URL = webhook('leads-create');
       
       const companyId = effectiveCompanyIdValue || userValue?.companyId;
+      const selectedSeller = attendants.find(attendant => String(attendant.id) === String(newLead.sellerId));
       
       const payload = {
         companyId: companyId,
@@ -469,7 +511,8 @@
         phone: newLead.phone,
         category: newLead.category,
         course: newLead.course,
-        seller: newLead.seller || userValue?.name,
+        seller: selectedSeller?.name,
+        sellerId: newLead.sellerId,
         notes: newLead.notes,
         firstContact: new Date().toISOString()
       };
@@ -730,8 +773,25 @@
             </div>
           </div>
 
-          <div class="text-sm text-zinc-400">
-            Exibindo {paginatedLeads().length} de {filteredLeads().length} leads filtrados
+          <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-400">
+            <span>Exibindo {pageStart()} a {pageEnd()} leads</span>
+            <div class="flex items-center gap-2">
+              <span>Página {currentPage} de {totalPages()}</span>
+              <button
+                onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                class="rounded-lg bg-zinc-800 px-3 py-1.5 text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                onclick={() => (currentPage = Math.min(totalPages(), currentPage + 1))}
+                disabled={currentPage >= totalPages()}
+                class="rounded-lg bg-zinc-800 px-3 py-1.5 text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Próxima
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -768,13 +828,19 @@
               </thead>
               <tbody>
                 {#each paginatedLeads() as lead}
-                  <tr class="border-b border-zinc-700 hover:bg-zinc-800/50 hover:border-l-4 hover:border-l-green-600 transition-all">
+                  <tr
+                    class="cursor-pointer border-b border-zinc-700 hover:bg-zinc-800/50 hover:border-l-4 hover:border-l-green-600 transition-all"
+                    role="button"
+                    tabindex="0"
+                    onclick={() => viewLeadDetails(lead)}
+                    onkeydown={(event) => event.key === 'Enter' && viewLeadDetails(lead)}
+                  >
                     {#if canDelete}
                       <td class="p-4">
                         <input 
                           type="checkbox" 
                           checked={selectedLeads.has(lead.id)}
-                          onclick={() => toggleSelectLead(lead.id)}
+                          onclick={(event) => { event.stopPropagation(); toggleSelectLead(lead.id); }}
                           class="w-4 h-4 rounded border-zinc-600 bg-zinc-700 text-green-600 focus:ring-green-600"
                         />
                       </td>
@@ -786,58 +852,44 @@
                     <td class="p-4 text-sm text-zinc-400">{lead.phone}</td>
                     <td class="p-4 text-sm text-zinc-400">{lead.seller}</td>
                     <td class="p-4 text-sm text-zinc-400">{formatDate(lead.firstContact)}</td>
-                    <td class="p-4">
-                      <button
-                        onclick={() => viewLeadDetails(lead)}
-                        class="text-green-500 hover:text-green-400 text-sm font-medium"
-                        aria-label="Ver detalhes do lead"
-                      >
-                        Ver detalhes
-                      </button>
-                      {#if canDelete}
+                    <td class="relative p-4" onclick={(event) => event.stopPropagation()}>
+                      {#if canDelete || canTransfer}
                         <button
-                          onclick={() => deleteLeads([lead.id])}
-                          class="text-red-500 hover:text-red-400 text-sm font-medium ml-3"
-                          title="Excluir"
+                          onclick={(event) => toggleLeadActions(event, lead.id)}
+                          class="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                          aria-label="Abrir ações do lead"
+                          aria-expanded={openActionsLeadId === lead.id}
                         >
-                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12 12.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12 18.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
                           </svg>
                         </button>
-                      {/if}
-                      {#if canTransfer}
-                        <button
-                          onclick={() => openTransferModal(lead)}
-                          class="text-blue-400 hover:text-blue-300 text-sm font-medium ml-3"
-                          title="Associar atendente"
-                        >
-                          Associar
-                        </button>
+                        {#if openActionsLeadId === lead.id}
+                          <div class="absolute right-4 top-12 z-10 min-w-36 rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
+                            {#if canTransfer}
+                              <button
+                                onclick={(event) => { event.stopPropagation(); openActionsLeadId = null; openTransferModal(lead); }}
+                                class="block w-full rounded-md px-3 py-2 text-left text-sm text-white hover:bg-zinc-800"
+                              >
+                                Associar
+                              </button>
+                            {/if}
+                            {#if canDelete}
+                              <button
+                                onclick={(event) => { event.stopPropagation(); openActionsLeadId = null; deleteLeads([lead.id]); }}
+                                class="block w-full rounded-md px-3 py-2 text-left text-sm text-red-400 hover:bg-zinc-800"
+                              >
+                                Apagar
+                              </button>
+                            {/if}
+                          </div>
+                        {/if}
                       {/if}
                     </td>
                   </tr>
                 {/each}
               </tbody>
             </table>
-          </div>
-          <div class="flex items-center justify-between border-t border-zinc-700 px-4 py-3">
-            <span class="text-sm text-zinc-400">Página {currentPage} de {totalPages()}</span>
-            <div class="flex gap-2">
-              <button
-                onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                class="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Anterior
-              </button>
-              <button
-                onclick={() => (currentPage = Math.min(totalPages(), currentPage + 1))}
-                disabled={currentPage >= totalPages()}
-                class="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Próxima
-              </button>
-            </div>
           </div>
         </div>
       {/if}
@@ -1065,14 +1117,17 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-white mb-2" for="newLeadSeller">Vendedor</label>
-          <input
-            type="text"
-            bind:value={newLead.seller}
-            placeholder="Nome do vendedor (opcional)"
+          <label class="block text-sm font-medium text-white mb-2" for="newLeadSeller">Vendedor *</label>
+          <select
+            bind:value={newLead.sellerId}
             class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
             id="newLeadSeller"
-          />
+          >
+            <option value="">Selecione um vendedor...</option>
+            {#each attendants as attendant}
+              <option value={attendant.id}>{attendant.name}</option>
+            {/each}
+          </select>
         </div>
 
         <div>
